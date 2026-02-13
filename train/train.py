@@ -59,6 +59,10 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch, writer,
 
         loss = criterion(out_mean, labels)
         loss.backward()
+
+        # Gradient clipping for stable SNN training
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         # Reset neuron states for next sample
@@ -128,9 +132,8 @@ def main():
     parser = argparse.ArgumentParser(description="SNN ResNet-18 CIFAR-10 Training")
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--batch-size", type=int, default=128)
-    parser.add_argument("--lr", type=float, default=0.1)
-    parser.add_argument("--momentum", type=float, default=0.9)
-    parser.add_argument("--weight-decay", type=float, default=5e-4)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--s-th0", type=float, default=0.07,
                         help="I2E sensitivity threshold (0.07 for CIFAR)")
     parser.add_argument("--tau", type=float, default=2.0,
@@ -172,14 +175,13 @@ def main():
 
     # Training setup
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(
+    optimizer = torch.optim.Adam(
         model.parameters(),
         lr=args.lr,
-        momentum=args.momentum,
         weight_decay=args.weight_decay,
     )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.epochs,
+        optimizer, T_max=args.epochs, eta_min=1e-5,
     )
 
     # Logging

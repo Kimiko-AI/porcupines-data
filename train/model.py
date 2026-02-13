@@ -13,7 +13,7 @@ from copy import deepcopy
 
 import torch
 import torch.nn as nn
-from spikingjelly.activation_based import layer, neuron, functional
+from spikingjelly.activation_based import layer, neuron, functional, surrogate
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +207,7 @@ class SpikingResNetCIFAR(nn.Module):
 def spiking_resnet18_cifar(
     num_classes: int = 10,
     in_channels: int = 2,
+    tau: float = 2.0,
     **kwargs,
 ) -> SpikingResNetCIFAR:
     """Create a CIFAR-adapted Spiking ResNet-18.
@@ -217,8 +218,10 @@ def spiking_resnet18_cifar(
         Number of output classes (default 10 for CIFAR-10).
     in_channels : int
         Input channels (default 2 for ON/OFF I2E events).
+    tau : float
+        LIF neuron time constant.
     **kwargs
-        Extra kwargs forwarded to the spiking neuron (e.g. ``tau=2.0``).
+        Extra kwargs forwarded to the spiking neuron.
     """
     return SpikingResNetCIFAR(
         block=BasicBlock,
@@ -226,5 +229,8 @@ def spiking_resnet18_cifar(
         num_classes=num_classes,
         in_channels=in_channels,
         spiking_neuron=neuron.LIFNode,
+        tau=tau,
+        surrogate_function=surrogate.ATan(alpha=2.0),
+        detach_reset=True,
         **kwargs,
     )
