@@ -25,7 +25,7 @@ from spikingjelly.activation_based import functional
 # Local imports
 sys.path.insert(0, os.path.dirname(__file__))
 from model import spiking_resnet18_cifar
-from dataset import get_dataloaders
+from dataset import get_dataloaders, get_dvs_dataloader
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,8 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch, writer,
 
 
 @torch.no_grad()
-def evaluate(model, loader, criterion, device, epoch, writer):
+def evaluate(model, loader, criterion, device, epoch, writer,
+             tag_prefix="val"):
     model.eval()
     total_loss = 0.0
     correct = 0
@@ -118,8 +119,8 @@ def evaluate(model, loader, criterion, device, epoch, writer):
 
     avg_loss = total_loss / total
     accuracy = 100.0 * correct / total
-    writer.add_scalar("val/loss", avg_loss, epoch)
-    writer.add_scalar("val/accuracy", accuracy, epoch)
+    writer.add_scalar(f"{tag_prefix}/loss", avg_loss, epoch)
+    writer.add_scalar(f"{tag_prefix}/accuracy", accuracy, epoch)
 
     return avg_loss, accuracy
 
@@ -144,6 +145,10 @@ def main():
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--log-dir", type=str, default="runs")
     parser.add_argument("--save-dir", type=str, default="checkpoints")
+    parser.add_argument("--eval-dvs", action="store_true",
+                        help="Also evaluate on CIFAR-10 DVS each epoch")
+    parser.add_argument("--dvs-data-dir", type=str, default="./data/cifar10_dvs",
+                        help="Root directory for CIFAR-10 DVS data")
     args = parser.parse_args()
 
     # Device
@@ -162,6 +167,18 @@ def main():
         num_workers=args.num_workers,
     )
     print(f"Train batches: {len(train_loader)}, Test batches: {len(test_loader)}")
+
+    # Optional: CIFAR-10 DVS for transfer eval
+    dvs_loader = None
+    if args.eval_dvs:
+        print(f"Loading CIFAR-10 DVS from {args.dvs_data_dir} ...")
+        dvs_loader = get_dvs_dataloader(
+            root=args.dvs_data_dir,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            train=False,
+        )
+        print(f"DVS test batches: {len(dvs_loader)}")
 
     # Model
     model = spiking_resnet18_cifar(
@@ -195,6 +212,8 @@ def main():
     print(f"Training Spiking ResNet-18 on CIFAR-10 (I2E encoded)")
     print(f"Epochs: {args.epochs}  |  Batch: {args.batch_size}  |  LR: {args.lr}")
     print(f"I2E s_th0: {args.s_th0}  |  LIF tau: {args.tau}")
+    if dvs_loader:
+        print(f"DVS eval: ON  ({args.dvs_data_dir})")
     print(f"{'='*60}\n")
 
     for epoch in range(1, args.epochs + 1):
@@ -207,7 +226,19 @@ def main():
 
         val_loss, val_acc = evaluate(
             model, test_loader, criterion, device, epoch, writer,
+            tag_prefix="val",
         )
+
+        # CIFAR-10 DVS transfer eval
+        dvs_msg = ""
+        if dvs_loader is not None:
+            dvs_loss, dvs_acc = evaluate(
+                model, dvs_loader, criterion, device, epoch, writer,
+                tag_prefix="dvs",
+            )
+            dvs_msg = f"  DVS: {dvs_loss:.4f} / {dvs_acc:.1f}%"
+            writer.add_scalar("dvs/loss", dvs_loss, epoch)
+            writer.add_scalar("dvs/accuracy", dvs_acc, epoch)
 
         scheduler.step()
 
@@ -215,7 +246,8 @@ def main():
         print(
             f"Epoch {epoch}/{args.epochs}  "
             f"Train: {train_loss:.4f} / {train_acc:.1f}%  "
-            f"Val: {val_loss:.4f} / {val_acc:.1f}%  "
+            f"Val: {val_loss:.4f} / {val_acc:.1f}%"
+            f"{dvs_msg}  "
             f"LR: {scheduler.get_last_lr()[0]:.6f}  "
             f"({elapsed:.1f}s)"
         )
