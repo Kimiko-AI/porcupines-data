@@ -15,6 +15,7 @@ from snn_encoder import (
     LatencyEncoder,
     DeltaEncoder,
     ODGEncoder,
+    I2EEncoder,
 )
 
 
@@ -47,6 +48,7 @@ class TestRegistry:
         assert "latency" in names
         assert "delta" in names
         assert "odg" in names
+        assert "i2e" in names
 
     def test_get_encoder(self):
         cls = get_encoder("rate")
@@ -196,6 +198,55 @@ class TestODGEncoder:
         recon = encoder.reconstruct(spikes, threshold=0.18)
         assert recon.shape == (16, 16)  # 12+4, 12+4
 
+class TestI2EEncoder:
+    def test_output_shape_grayscale(self):
+        image = np.random.default_rng(0).random((16, 16))
+        encoder = I2EEncoder()
+        spikes = encoder.encode(image)
+        # Fixed T=8, ON/OFF polarity
+        assert spikes.shape == (8, 16, 16, 2)
+
+    def test_output_shape_rgb(self):
+        image = np.random.default_rng(0).random((16, 16, 3))
+        encoder = I2EEncoder()
+        spikes = encoder.encode(image)
+        assert spikes.shape == (8, 16, 16, 2)
+
+    def test_binary_output(self):
+        image = np.random.default_rng(0).random((16, 16))
+        encoder = I2EEncoder()
+        spikes = encoder.encode(image)
+        assert set(np.unique(spikes)).issubset({0, 1})
+
+    def test_no_events_for_uniform_image(self):
+        image = np.full((16, 16), 0.5)
+        encoder = I2EEncoder()
+        spikes = encoder.encode(image)
+        assert spikes.sum() == 0
+
+    def test_deterministic(self):
+        image = np.random.default_rng(7).random((16, 16))
+        encoder = I2EEncoder()
+        s1 = encoder.encode(image)
+        s2 = encoder.encode(image)
+        np.testing.assert_array_equal(s1, s2)
+
+    def test_get_module(self):
+        import torch
+        module = I2EEncoder.get_module(s_th0=0.12, device="cpu")
+        batch = torch.rand(2, 3, 16, 16)
+        with torch.no_grad():
+            out = module(batch)
+        assert out.shape == (8, 2, 2, 16, 16)
+
+    def test_gradient_produces_events(self):
+        """An image with spatial gradients should produce events."""
+        # Linear gradient: smooth edges produce events via conv kernels
+        image = np.linspace(0, 1, 32 * 32).reshape(32, 32)
+        encoder = I2EEncoder()
+        spikes = encoder.encode(image)
+        assert spikes.sum() > 0
+
 
 # ---------------------------------------------------------------------------
 # Encoder name property
@@ -208,6 +259,7 @@ class TestEncoderMeta:
         (LatencyEncoder, "latency"),
         (DeltaEncoder, "delta"),
         (ODGEncoder, "odg"),
+        (I2EEncoder, "i2e"),
     ])
     def test_name_property(self, cls, expected):
         assert cls().name == expected

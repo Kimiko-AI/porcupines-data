@@ -5,6 +5,7 @@ from snn_encoder.encoders.poisson import PoissonEncoder
 from snn_encoder.encoders.latency import LatencyEncoder
 from snn_encoder.encoders.delta import DeltaEncoder
 from snn_encoder.encoders.odg import ODGEncoder
+from snn_encoder.encoders.i2e import I2EEncoder
 
 __all__ = [
     "RateEncoder",
@@ -12,4 +13,5 @@ __all__ = [
     "LatencyEncoder",
     "DeltaEncoder",
     "ODGEncoder",
+    "I2EEncoder",
 ]

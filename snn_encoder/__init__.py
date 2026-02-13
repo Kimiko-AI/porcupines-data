@@ -13,6 +13,7 @@ from snn_encoder.encoders import (
     LatencyEncoder,
     DeltaEncoder,
     ODGEncoder,
+    I2EEncoder,
 )
 
 # Convenience re-export
@@ -35,6 +36,7 @@ __all__ = [
     "LatencyEncoder",
     "DeltaEncoder",
     "ODGEncoder",
+    "I2EEncoder",
 ]
 
 __version__ = "0.1.0"
