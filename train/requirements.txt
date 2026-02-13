@@ -1,0 +1,8 @@
+# Training pipeline for SNN ResNet-18 on CIFAR-10
+# Install from project root:  pip install -e ..
+# Then:                        pip install -r requirements.txt
+
+torch>=2.0.0
+torchvision>=0.15.0
+spikingjelly>=0.0.0.0.14
+tensorboard>=2.14.0
